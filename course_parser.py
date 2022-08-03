@@ -4,10 +4,17 @@ import json
 import glob
 import os
 
+import warnings
+warnings.filterwarnings('ignore')
+
 from vispy import scene, app
 from vispy.util.transforms import rotate
+from vispy.io import imsave
 
 from course_dict import course_dict
+from course_sql_query import *
+
+MDB_PATH = os.path.join('MDB', 'master.mdb')
 
 def course_drawer(text_course_userinput,
                   text_course_distance_userinput,
@@ -19,13 +26,21 @@ def course_drawer(text_course_userinput,
 
     # Fetch data
     # Fetch from sqlite
-    mdb = sqlite3.connect(os.path.join('MDB', 'master.mdb'))
+    mdb = sqlite3.connect(MDB_PATH)
     mdb_cursor = mdb.cursor()
-    query = f"SELECT [index], [text] FROM text_data " \
-            f"WHERE REPLACE([text], ' ', '') LIKE \"%{text_course_userinput.replace(' ','')}%\" " \
-            f"AND category IS 31" # cat 31 = stadium
+
+    query = fetch_course_id_and_name(text_course_userinput)
+
     mdb_cursor.execute(query)
-    mdb_result = mdb_cursor.fetchall()[0]
+    mdb_result_all = mdb_cursor.fetchall()
+
+    if len(mdb_result_all) < 1:
+        print(f'Cannot find course named {text_course_userinput}')
+        mdb.close()
+        return
+
+    mdb_result = mdb_result_all[0]
+
     text_course_id = mdb_result[0]
     text_course_name = mdb_result[1]
 
@@ -65,32 +80,21 @@ def course_drawer(text_course_userinput,
         text_course_distance = int(np.round(text_course_distance / 100) * 100)
 
     # Fetch CourseParamTable id
-    query = f"SELECT [id] FROM race_course_set " \
-            f"WHERE race_track_id IS {text_course_id} " \
-            f"AND distance IS {text_course_distance} " \
-            f"AND ground IS {text_course_type_id} " \
-            f"AND inout IS {text_course_inout_id} " \
-            f"AND turn IS {text_course_turn_id}"
+    query = fetch_course_param_table_id(text_course_id, text_course_distance,
+                                        text_course_type_id, text_course_inout_id,
+                                        text_course_turn_id)
 
     mdb_cursor.execute(query)
     mdb_result = mdb_cursor.fetchone()
 
-    if len(mdb_result) != 1:
+    if not mdb_result:
         print('Course not found')
         mdb.close()
         return
 
     text_course_param_table_id = mdb_result[0]
 
-    # 타카마츠노미야 기념 cat 32 idx 1002 (text_data)
-    # cat 32 = race name
-    # index 1xxx = G1, 2xxx = G2 3xxx = G3...
-    # 타카마츠노미야 기념
-    # course_set 10701 id 1002 (race) -> join text_data
-    query = f"SELECT DISTINCT text_data.[text] FROM race INNER JOIN text_data " \
-            f"ON race.course_set = {text_course_param_table_id} " \
-            f"AND text_data.[index] = race.[id] " \
-            f"WHERE text_data.category = 32"
+    query = fetch_course_name(text_course_param_table_id)
 
     mdb_cursor.execute(query)
     mdb_result = mdb_cursor.fetchall()
@@ -208,13 +212,14 @@ def course_drawer(text_course_userinput,
     b4 = grid.add_view(row=1, col=2)
     b4.border_color = (0.5, 0.5, 0.5, 1)
     cam_3d_center = (0, 0)
-    cam_3d = scene.TurntableCamera(scale_factor=1000, center=cam_3d_center, elevation=20)
+    cam_3d = scene.TurntableCamera(scale_factor=1000, center=cam_3d_center, elevation=20, azimuth=120)
     b4.camera = cam_3d
 
     # Generate vertex
     # Top-down
     N = len(xx)
     NSub = len(race_course_sub)
+    NTurnSub = len(race_course_turn_sub)
     pos = np.empty((N, 2), dtype=float)
     pos[:, 0] = xx
     pos[:, 1] = zz
@@ -223,7 +228,7 @@ def course_drawer(text_course_userinput,
     pos_sub[:] = pos[race_course_sub[:],:]
 
     if text_course_turn_id != 4:
-        pos_turns = np.empty((NSub, 2), dtype=float)
+        pos_turns = np.empty((NTurnSub, 2), dtype=float)
         _rctmp = np.array(race_course_turn_sub)
         _rctmp = _rctmp[:,1].tolist()
         pos_turns[:] = pos[_rctmp, :]
@@ -259,10 +264,14 @@ def course_drawer(text_course_userinput,
         gridcontents_course_turn_sub.set_data(pos_turns, size=15, symbol='x', face_color='r', edge_width=0)
         gridcontents_course_turn_sub.update_gl_state(depth_test=False)
 
-    race_course_sub_idx = 'WP'
-    race_course_turn_sub_idx = [str(item[0][0]) for i, item in enumerate(race_course_turn_sub)]
-    pos_sub[-1][1] -= 30
-    scene.visuals.Text(text=race_course_sub_idx, pos=pos_sub[-1], rotation=90.0, color='k', parent=b1.scene)
+    #race_course_turn_sub_idx = [str(item[0][0]) for i, item in enumerate(race_course_turn_sub)]
+    sub_wp = np.copy(pos[-1])
+    sub_wp[1] -= 40
+    scene.visuals.Text(text='WP', pos=sub_wp, rotation=90.0, color='k', parent=b1.scene)
+    sub_start = np.copy(pos[0])
+    sub_start[1] -= 40
+    scene.visuals.Text(text='START', pos=sub_start, rotation=90.0, color='k', parent=b1.scene)
+
     #scene.visuals.Text(text=race_course_turn_sub_idx, pos=pos_turns, rotation=90.0, color='r', parent=b1.scene)
 
     # Text description - [0, 0, 20, 20]
@@ -271,13 +280,10 @@ def course_drawer(text_course_userinput,
                     f'코스길이 : {text_course_distance}\n' \
                     f'코스타입 : {text_course_type_name}\n' \
                     f'코스정보 : {text_course_turn_name} / {text_course_inout_name}\n' \
-                    f'최고/최저높이 : {max(yy):.1f}m / {min(yy):.1f}m\n\n'
+                    f'최고/최저높이 : {max(yy):.1f}m / {min(yy):.1f}m\n' \
+                    f'(ID {text_course_id}, ParamID {text_course_param_table_id})\n\n'
 
     _str_builder += _str_course
-    _str_builder += f'<코스 구간 정보>\n\n'
-
-    for i in range(len(race_course_sub_orig) - 1):
-        _str_builder += f'{i}~{i+1} 구간 : {race_course_sub_orig[i+1] - race_course_sub_orig[i]:.1f}m\n'
 
     scene.visuals.Text(text=_str_builder, pos=[5, 10], parent=b2.scene, face='맑은 고딕', font_size=15)
 
@@ -310,7 +316,7 @@ def course_drawer(text_course_userinput,
             pass
         else:
             scene.visuals.Text(text=str(f'{race_course_sub_orig[i + 1] - race_course_sub_orig[i]:.0f}'),
-                               pos=[race_course_sub[i + 1] - 30, max(yy)],
+                               pos=[race_course_sub[i + 1] - 30, max(yy)+0.2],
                                font_size=12, parent=b3.scene)
 
     if text_course_turn_id != 4:
@@ -322,11 +328,10 @@ def course_drawer(text_course_userinput,
                   [0.58, 0, 0.82, 0.2],]
 
         for i in range(len(_rctmp)):
-            #scene.visuals.InfiniteLine(_rctmp[i], [0.5,0.5,0.5,0.5], parent=b3.scene)
             scene.visuals.LinearRegion([_rctmp[i,1], _rctmp[i,1] + _rctmp[i,0][1]], _cmtmp[int(i % 4)], parent=b3.scene)
 
             scene.visuals.Text(text=str(f'#{_rctmp[i,0][0]} {_rcotmp[i,0][1]:.0f}'),
-                               pos=[_rctmp[i,1] + _rctmp[i,0][1] - 40, max(yy)],
+                               pos=[_rctmp[i,1] + _rctmp[i,0][1] - 40, max(yy)+0.2],
                                font_size=12, parent=b3.scene, color=(0.545, 0, 0, 0.75))
 
     # 3D Rotating
@@ -334,7 +339,7 @@ def course_drawer(text_course_userinput,
     gridcontents_3d.set_data(pos_3d, size=2, symbol='o', face_color=color, edge_width=0)
     gridcontents_3d.update_gl_state(depth_test=False)
     gridcontents_3d_sub = scene.visuals.Markers(parent=b4.scene)
-    gridcontents_3d_sub.set_data(pos_3d_sub, size=10, symbol='x', face_color='red', edge_width=0)
+    gridcontents_3d_sub.set_data(pos_3d_sub, size=10, symbol='vbar', face_color='black', edge_width=0)
     gridcontents_3d_sub.update_gl_state(depth_test=False)
 
     def camera_rotate(event):
@@ -343,12 +348,61 @@ def course_drawer(text_course_userinput,
         b4.update()
 
     timer = app.Timer(interval='auto', connect=camera_rotate, start=True)
+
     app.run()
 
+    imsave('test.png', canvas.render())
+
+def course_drawer_wrapper(text_race_userinput):
+
+    mdb = sqlite3.connect(MDB_PATH)
+    mdb_cursor = mdb.cursor()
+
+    query = fetch_course_index(text_race_userinput)
+    mdb_cursor.execute(query)
+    fetch_result = mdb_cursor.fetchone()
+
+    if not fetch_result:
+        print(f'Cannot find race named {text_race_userinput}')
+        mdb.close()
+        return
+
+    race_index = fetch_result[0]
+
+    query = fetch_course_set(text_race_userinput)
+    mdb_cursor.execute(query)
+    fetch_result = mdb_cursor.fetchone()
+    course_set = fetch_result[0]
+
+    query = fetch_course_param_table(course_set, race_index)
+    mdb_cursor.execute(query)
+    course_param_table = mdb_cursor.fetchone()
+
+    # course_param_table = id / race_track_id / distance / ground / inout / turn ...
+    query = fetch_course_name_with_id(course_param_table[1])
+    mdb_cursor.execute(query)
+    fetch_result = mdb_cursor.fetchone()
+    course_name = fetch_result[0]
+
+    mdb.close()
+
+    course_info = course_dict()
+
+    course_drawer(text_course_userinput=course_name,
+                  text_course_distance_userinput=course_param_table[2],
+                  text_course_turn_userinput=course_info.turn[course_param_table[5]],
+                  text_course_type_userinput=course_info.type[course_param_table[3]],
+                  text_course_inout_userinput=course_info.inout[course_param_table[4]],
+                  )
+
 if __name__ == '__main__':
-    course_drawer(text_course_userinput='니이가타',
-                  text_course_distance_userinput=1000,
+
+    #course_drawer_wrapper(text_race_userinput='부상 직후 트레이닝')
+    
+
+    course_drawer(text_course_userinput='한신',
+                  text_course_distance_userinput=3200,
                   text_course_type_userinput='잔디',
-                  text_course_turn_userinput='직선',
-                  text_course_inout_userinput='',
+                  text_course_turn_userinput='우',
+                  text_course_inout_userinput='외내',
                   )
