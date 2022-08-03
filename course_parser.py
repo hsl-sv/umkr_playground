@@ -222,10 +222,11 @@ def course_drawer(text_course_userinput,
     pos_sub = np.empty((NSub, 2), dtype=float)
     pos_sub[:] = pos[race_course_sub[:],:]
 
-    pos_turns = np.empty((NSub, 2), dtype=float)
-    _rctmp = np.array(race_course_turn_sub)
-    _rctmp = _rctmp[:,1].tolist()
-    pos_turns[:] = pos[_rctmp, :]
+    if text_course_turn_id != 4:
+        pos_turns = np.empty((NSub, 2), dtype=float)
+        _rctmp = np.array(race_course_turn_sub)
+        _rctmp = _rctmp[:,1].tolist()
+        pos_turns[:] = pos[_rctmp, :]
 
     # Colormap
     color = np.ones((N, 4), dtype=float)
@@ -252,9 +253,12 @@ def course_drawer(text_course_userinput,
     gridcontents_course_sub = scene.visuals.Markers(parent=b1.scene)
     gridcontents_course_sub.set_data(pos_sub, size=15, symbol='vbar', face_color='k', edge_width=0,)
     gridcontents_course_sub.update_gl_state(depth_test=False)
-    gridcontents_course_turn_sub = scene.visuals.Markers(parent=b1.scene)
-    gridcontents_course_turn_sub.set_data(pos_turns, size=15, symbol='x', face_color='r', edge_width=0)
-    gridcontents_course_turn_sub.update_gl_state(depth_test=False)
+
+    if text_course_turn_id != 4:
+        gridcontents_course_turn_sub = scene.visuals.Markers(parent=b1.scene)
+        gridcontents_course_turn_sub.set_data(pos_turns, size=15, symbol='x', face_color='r', edge_width=0)
+        gridcontents_course_turn_sub.update_gl_state(depth_test=False)
+
     race_course_sub_idx = 'WP'
     race_course_turn_sub_idx = [str(item[0][0]) for i, item in enumerate(race_course_turn_sub)]
     pos_sub[-1][1] -= 30
@@ -273,7 +277,7 @@ def course_drawer(text_course_userinput,
     _str_builder += f'<코스 구간 정보>\n\n'
 
     for i in range(len(race_course_sub_orig) - 1):
-        _str_builder += f'{i}~{i+1} 구간 : {race_course_sub_orig[i+1] - race_course_sub_orig[i]}m\n'
+        _str_builder += f'{i}~{i+1} 구간 : {race_course_sub_orig[i+1] - race_course_sub_orig[i]:.1f}m\n'
 
     scene.visuals.Text(text=_str_builder, pos=[5, 10], parent=b2.scene, face='맑은 고딕', font_size=15)
 
@@ -309,20 +313,21 @@ def course_drawer(text_course_userinput,
                                pos=[race_course_sub[i + 1] - 30, max(yy)],
                                font_size=12, parent=b3.scene)
 
-    _rctmp = np.array(race_course_turn_sub)
-    _rcotmp = np.array(race_course_turn_sub_orig)
-    _cmtmp = [[1, 0.27, 0, 0.2],
-              [0.27, 1, 0, 0.2],
-              [0, 0.27, 1, 0.2],
-              [0.58, 0, 0.82, 0.2],]
+    if text_course_turn_id != 4:
+        _rctmp = np.array(race_course_turn_sub)
+        _rcotmp = np.array(race_course_turn_sub_orig)
+        _cmtmp = [[1, 0.27, 0, 0.2],
+                  [0.27, 1, 0, 0.2],
+                  [0, 0.27, 1, 0.2],
+                  [0.58, 0, 0.82, 0.2],]
 
-    for i in range(len(_rctmp)):
-        #scene.visuals.InfiniteLine(_rctmp[i], [0.5,0.5,0.5,0.5], parent=b3.scene)
-        scene.visuals.LinearRegion([_rctmp[i,1], _rctmp[i,1] + _rctmp[i,0][1]], _cmtmp[int(i % 4)], parent=b3.scene)
+        for i in range(len(_rctmp)):
+            #scene.visuals.InfiniteLine(_rctmp[i], [0.5,0.5,0.5,0.5], parent=b3.scene)
+            scene.visuals.LinearRegion([_rctmp[i,1], _rctmp[i,1] + _rctmp[i,0][1]], _cmtmp[int(i % 4)], parent=b3.scene)
 
-        scene.visuals.Text(text=str(f'#{_rctmp[i,0][0]} {_rcotmp[i,0][1]:.0f}'),
-                           pos=[_rctmp[i,1] + _rctmp[i,0][1] - 40, max(yy)],
-                           font_size=12, parent=b3.scene, color=(0.545, 0, 0, 0.75))
+            scene.visuals.Text(text=str(f'#{_rctmp[i,0][0]} {_rcotmp[i,0][1]:.0f}'),
+                               pos=[_rctmp[i,1] + _rctmp[i,0][1] - 40, max(yy)],
+                               font_size=12, parent=b3.scene, color=(0.545, 0, 0, 0.75))
 
     # 3D Rotating
     gridcontents_3d = scene.visuals.Markers(parent=b4.scene)
@@ -341,9 +346,9 @@ def course_drawer(text_course_userinput,
     app.run()
 
 if __name__ == '__main__':
-    course_drawer(text_course_userinput='나카야마',
-                  text_course_distance_userinput=2500,
+    course_drawer(text_course_userinput='니이가타',
+                  text_course_distance_userinput=1000,
                   text_course_type_userinput='잔디',
-                  text_course_turn_userinput='우',
-                  text_course_inout_userinput='내',
+                  text_course_turn_userinput='직선',
+                  text_course_inout_userinput='',
                   )
