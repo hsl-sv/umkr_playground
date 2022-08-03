@@ -100,12 +100,11 @@ def course_drawer(text_course_userinput,
     mdb.close()
 
     # Require : Course name + Meter for select RacePosition json
+    _path_dist = f'*_{text_course_distance}_*.json'
     for k, v in kwargs.items():
         # course_spec='01_0_0'...
         if 'course_spec' in kwargs.keys():
             _path_dist = f'*_{text_course_distance}_{v}*.json' # TODO: _00_ vs _01_ ?
-        else:
-            _path_dist = f'*_{text_course_distance}_*.json'
 
     # 나카야마 RacePosition\\10005\\pos\\an_pos_race10005_00_2500_01_0_0.json -> 회전 중간에 스타트
     # 나카야마 RacePosition\\10005\\pos\\an_pos_race10005_00_2500_00_1_0~1.json -> 실제 스타트
@@ -115,6 +114,7 @@ def course_drawer(text_course_userinput,
         file = [file[0]]
 
     # Require : master.mdb data for select CourseParamTable json
+    # 나카야마 CourseParamTable 10506
     param = glob.glob(os.path.join('CourseParamTable', str(text_course_param_table_id), 'CourseParamTable.json'))
 
     # Prepare data
@@ -134,12 +134,14 @@ def course_drawer(text_course_userinput,
     tt = np.hstack(tt)
 
     turnparam = courseparam['courseParams']
-    turns = [item for i, item in enumerate(turnparam) if item['_paramType'] == 2]
-    #paramType0 = [item for i, item in enumerate(turnparam) if item['_paramType'] == 0]
+    param_straight = [item for i, item in enumerate(turnparam) if item['_paramType'] == 2]
+    param_turn = [item for i, item in enumerate(turnparam) if item['_paramType'] == 0]
     race_course_sub = []
     race_course_sub_orig = []
+    race_course_turn_sub = []
+    race_course_turn_sub_orig = []
 
-    for i, item in enumerate(turns):
+    for i, item in enumerate(param_straight):
         dist_resample = int(item['_distance'] / race_distance * len(yy))
         if dist_resample < 0:
             dist_resample = 0
@@ -147,6 +149,20 @@ def course_drawer(text_course_userinput,
             dist_resample = len(yy) - 1
         race_course_sub.extend([dist_resample])
         race_course_sub_orig.extend([item['_distance']])
+
+    for i, item in enumerate(param_turn):
+        dist_resample = int(item['_distance'] / race_distance * len(yy))
+        if dist_resample < 0:
+            dist_resample = 0
+        elif dist_resample >= len(yy):
+            dist_resample = len(yy) - 1
+        dist_sect_resample = int(item['_values'][1] / race_distance * len(yy))
+        if dist_sect_resample < 0:
+            dist_sect_resample = 0
+        elif dist_sect_resample >= len(yy):
+            dist_sect_resample = len(yy) - 1
+        race_course_turn_sub.append([[item['_values'][0], dist_sect_resample], dist_resample])
+        race_course_turn_sub_orig.append([item['_values'], item['_distance']])
 
     # Drawing part
     canvas = scene.SceneCanvas(keys='interactive')
@@ -206,6 +222,11 @@ def course_drawer(text_course_userinput,
     pos_sub = np.empty((NSub, 2), dtype=float)
     pos_sub[:] = pos[race_course_sub[:],:]
 
+    pos_turns = np.empty((NSub, 2), dtype=float)
+    _rctmp = np.array(race_course_turn_sub)
+    _rctmp = _rctmp[:,1].tolist()
+    pos_turns[:] = pos[_rctmp, :]
+
     # Colormap
     color = np.ones((N, 4), dtype=float)
     color[:, 0] = np.linspace(0, 1, N)
@@ -229,13 +250,16 @@ def course_drawer(text_course_userinput,
     gridcontents_course = scene.visuals.Line(pos=pos, color=color, antialias=False, width=3, method='gl', parent=b1.scene)
     gridcontents_course.update_gl_state(depth_test=False)
     gridcontents_course_sub = scene.visuals.Markers(parent=b1.scene)
-    gridcontents_course_sub.set_data(pos_sub, size=10, symbol='vbar', face_color='red', edge_width=0)
+    gridcontents_course_sub.set_data(pos_sub, size=15, symbol='vbar', face_color='k', edge_width=0,)
     gridcontents_course_sub.update_gl_state(depth_test=False)
-    race_course_sub_idx = [str(i) for i, _ in enumerate(race_course_sub)]
-    _i = 20
-    for i in range(len(race_course_sub)):
-        pos_sub[i][1] -= _i + (i * 5)
-    scene.visuals.Text(text=race_course_sub_idx, pos=pos_sub, rotation=90.0, parent=b1.scene)
+    gridcontents_course_turn_sub = scene.visuals.Markers(parent=b1.scene)
+    gridcontents_course_turn_sub.set_data(pos_turns, size=15, symbol='x', face_color='r', edge_width=0)
+    gridcontents_course_turn_sub.update_gl_state(depth_test=False)
+    race_course_sub_idx = 'WP'
+    race_course_turn_sub_idx = [str(item[0][0]) for i, item in enumerate(race_course_turn_sub)]
+    pos_sub[-1][1] -= 30
+    scene.visuals.Text(text=race_course_sub_idx, pos=pos_sub[-1], rotation=90.0, color='k', parent=b1.scene)
+    #scene.visuals.Text(text=race_course_turn_sub_idx, pos=pos_turns, rotation=90.0, color='r', parent=b1.scene)
 
     # Text description - [0, 0, 20, 20]
     _str_builder = f'<코스 일반 정보>\n\n'
@@ -275,12 +299,30 @@ def course_drawer(text_course_userinput,
     for i in range(len(race_course_sub)):
         scene.visuals.InfiniteLine(race_course_sub[i], [0.5,0.5,0.5,0.5], parent=b3.scene)
 
+        if i % 2 == 1:
+            continue
+
         if i == len(race_course_sub) - 1:
             pass
         else:
             scene.visuals.Text(text=str(f'{race_course_sub_orig[i + 1] - race_course_sub_orig[i]:.0f}'),
-                               pos=[(race_course_sub[i] + (race_course_sub[i + 1] - race_course_sub[i]) / 2.0), max(yy)],
+                               pos=[race_course_sub[i + 1] - 30, max(yy)],
                                font_size=12, parent=b3.scene)
+
+    _rctmp = np.array(race_course_turn_sub)
+    _rcotmp = np.array(race_course_turn_sub_orig)
+    _cmtmp = [[1, 0.27, 0, 0.2],
+              [0.27, 1, 0, 0.2],
+              [0, 0.27, 1, 0.2],
+              [0.58, 0, 0.82, 0.2],]
+
+    for i in range(len(_rctmp)):
+        #scene.visuals.InfiniteLine(_rctmp[i], [0.5,0.5,0.5,0.5], parent=b3.scene)
+        scene.visuals.LinearRegion([_rctmp[i,1], _rctmp[i,1] + _rctmp[i,0][1]], _cmtmp[int(i % 4)], parent=b3.scene)
+
+        scene.visuals.Text(text=str(f'#{_rctmp[i,0][0]} {_rcotmp[i,0][1]:.0f}'),
+                           pos=[_rctmp[i,1] + _rctmp[i,0][1] - 40, max(yy)],
+                           font_size=12, parent=b3.scene, color=(0.545, 0, 0, 0.75))
 
     # 3D Rotating
     gridcontents_3d = scene.visuals.Markers(parent=b4.scene)
