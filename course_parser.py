@@ -132,9 +132,14 @@ def course_drawer(text_course_userinput,
     xx = jparse['key']['valueX']
     zz = jparse['key']['valueZ']
     yy = jparse['key']['valueY']
+    yy_max = max(yy)
+    yy_ceil = np.ceil(yy_max)
+    yy_min = min(yy)
+    yy_floor = np.floor(yy_min)
+    yy_len = len(yy)
     tt = list(dict.fromkeys(np.array(yy).astype(int)))
     race_distance = jparse['Distance']
-    print(f'Highest : {max(yy)}, Distance : {race_distance}')
+    print(f'Highest : {yy_max}, Distance : {race_distance}')
     tt = np.hstack(tt)
 
     turnparam = courseparam['courseParams']
@@ -146,25 +151,25 @@ def course_drawer(text_course_userinput,
     race_course_turn_sub_orig = []
 
     for i, item in enumerate(param_straight):
-        dist_resample = int(item['_distance'] / race_distance * len(yy))
+        dist_resample = int(item['_distance'] / race_distance * yy_len)
         if dist_resample < 0:
             dist_resample = 0
-        elif dist_resample >= len(yy):
-            dist_resample = len(yy) - 1
+        elif dist_resample >= yy_len:
+            dist_resample = yy_len - 1
         race_course_sub.extend([dist_resample])
         race_course_sub_orig.extend([item['_distance']])
 
     for i, item in enumerate(param_turn):
-        dist_resample = int(item['_distance'] / race_distance * len(yy))
+        dist_resample = int(item['_distance'] / race_distance * yy_len)
         if dist_resample < 0:
             dist_resample = 0
-        elif dist_resample >= len(yy):
-            dist_resample = len(yy) - 1
-        dist_sect_resample = int(item['_values'][1] / race_distance * len(yy))
+        elif dist_resample >= yy_len:
+            dist_resample = yy_len - 1
+        dist_sect_resample = int(item['_values'][1] / race_distance * yy_len)
         if dist_sect_resample < 0:
             dist_sect_resample = 0
-        elif dist_sect_resample >= len(yy):
-            dist_sect_resample = len(yy) - 1
+        elif dist_sect_resample >= yy_len:
+            dist_sect_resample = yy_len - 1
         race_course_turn_sub.append([[item['_values'][0], dist_sect_resample], dist_resample])
         race_course_turn_sub_orig.append([item['_values'], item['_distance']])
 
@@ -202,11 +207,11 @@ def course_drawer(text_course_userinput,
     ch_xax_margin = min(race_distance / 100 * 10, 150)
 
     ch_yax_margin_lower = 0.3
-    ch_yax_start = np.floor(min(yy)) - ch_yax_margin_lower
+    ch_yax_start = yy_floor - ch_yax_margin_lower
     ch_yax_margin_upper = 0.5
-    ch_yax_end = np.abs(ch_yax_start) + np.ceil(max(yy)) + ch_yax_margin_upper
+    ch_yax_end = np.abs(ch_yax_start) + yy_ceil + ch_yax_margin_upper
     b3.camera = scene.PanZoomCamera(rect=(-ch_xax_size, ch_yax_start,
-                                          len(yy)+ch_xax_margin, ch_yax_end))
+                                          yy_len+ch_xax_margin, ch_yax_end))
 
     # Rotating course
     b4 = grid.add_view(row=1, col=2)
@@ -241,7 +246,7 @@ def course_drawer(text_course_userinput,
 
     # Height
     pos_height = np.empty((N, 2), dtype=float)
-    pos_height[:, 0] = np.linspace(0, len(yy), len(yy), endpoint=True)
+    pos_height[:, 0] = np.linspace(0, yy_len, yy_len, endpoint=True)
     pos_height[:, 1] = yy
 
     # 3D Scatter
@@ -280,7 +285,7 @@ def course_drawer(text_course_userinput,
                     f'코스길이 : {text_course_distance}\n' \
                     f'코스타입 : {text_course_type_name}\n' \
                     f'코스정보 : {text_course_turn_name} / {text_course_inout_name}\n' \
-                    f'최고/최저높이 : {max(yy):.1f}m / {min(yy):.1f}m\n' \
+                    f'최고/최저높이 : {yy_max:.1f}m / {yy_min:.1f}m\n' \
                     f'(ID {text_course_id}, ParamID {text_course_param_table_id})\n\n'
 
     _str_builder += _str_course
@@ -300,8 +305,8 @@ def course_drawer(text_course_userinput,
     scene.Axis(pos=[[0, 0], [N, 0]], tick_direction=(0,-1), domain=(0, race_distance), axis_color='k',
                tick_color='k', text_color='k', axis_font_size=12, tick_font_size=12,
                axis_label_margin=30, tick_label_margin=8, parent=b3.scene)
-    scene.Axis(pos=[[0, np.floor(min(yy))], [0, np.ceil(max(yy))]], tick_direction=(-1, 0),
-               domain=(np.floor(min(yy)), np.ceil(max(yy))), axis_label='meter',
+    scene.Axis(pos=[[0, yy_floor], [0, yy_ceil]], tick_direction=(-1, 0),
+               domain=(yy_floor, yy_ceil), axis_label='meter',
                axis_color='k', axis_font_size=12, tick_font_size=12,
                tick_color='k', text_color='k',
                axis_label_margin=30, tick_label_margin=8, parent=b3.scene)
@@ -316,7 +321,7 @@ def course_drawer(text_course_userinput,
             pass
         else:
             scene.visuals.Text(text=str(f'{race_course_sub_orig[i + 1] - race_course_sub_orig[i]:.0f}'),
-                               pos=[race_course_sub[i + 1] - 30, max(yy)+0.2],
+                               pos=[race_course_sub[i + 1] - 30, yy_max+0.2],
                                font_size=12, parent=b3.scene)
 
     if text_course_turn_id != 4:
@@ -328,11 +333,43 @@ def course_drawer(text_course_userinput,
                   [0.58, 0, 0.82, 0.2],]
 
         for i in range(len(_rctmp)):
-            scene.visuals.LinearRegion([_rctmp[i,1], _rctmp[i,1] + _rctmp[i,0][1]], _cmtmp[int(i % 4)], parent=b3.scene)
+            _turn_polygon_border = [(_rctmp[i,1], 0),
+                                    (_rctmp[i,1] + _rctmp[i,0][1], 0),
+                                    (_rctmp[i,1] + _rctmp[i,0][1], yy_ceil),
+                                    (_rctmp[i,1], yy_ceil)]
+            scene.visuals.Polygon(_turn_polygon_border, color=_cmtmp[int(i % 4)], parent=b3.scene)
+            #scene.visuals.LinearRegion([_rctmp[i,1], _rctmp[i,1] + _rctmp[i,0][1]], _cmtmp[int(i % 4)], parent=b3.scene)
 
             scene.visuals.Text(text=str(f'#{_rctmp[i,0][0]} {_rcotmp[i,0][1]:.0f}'),
-                               pos=[_rctmp[i,1] + _rctmp[i,0][1] - 40, max(yy)+0.2],
+                               pos=[_rctmp[i,1] + _rctmp[i,0][1] - 30, yy_max+0.2],
                                font_size=12, parent=b3.scene, color=(0.545, 0, 0, 0.75))
+
+    _cmtmp = [[0, 1, 0, 0.5],
+              [0, 0, 1, 0.5],
+              [0, 0.5, 0.5, 0.5],
+              [1, 0, 0, 0.5],]
+
+    course_sector_xdata = [(0, int(yy_len / 6 * 1)),
+                           (int(yy_len / 6 * 1), int(yy_len / 6 * 4)),
+                           (int(yy_len / 6 * 4), int(yy_len / 6 * 5)),
+                           (int(yy_len / 6 * 5), int(yy_len)),
+                           ]
+    course_sector_xdata_metric = [int(race_distance / 6 * 1),
+                                  int(race_distance / 6 * 4),
+                                  int(race_distance / 6 * 5),
+                                  race_distance,
+                                 ]
+    course_sector_ydata = 0.1
+
+    for i in range(4):
+        _course_sector_border = [(course_sector_xdata[i][0], -course_sector_ydata),
+                                 (course_sector_xdata[i][1], -course_sector_ydata),
+                                 (course_sector_xdata[i][1], 0),
+                                 (course_sector_xdata[i][0], 0)]
+        scene.visuals.Polygon(_course_sector_border, color=_cmtmp[i], parent=b3.scene)
+        scene.visuals.Text(text=str(f'{course_sector_xdata_metric[i]}m'),
+                           pos=[course_sector_xdata[i][1], course_sector_ydata],
+                           font_size=12, parent=b3.scene, color='k')
 
     # 3D Rotating
     gridcontents_3d = scene.visuals.Markers(parent=b4.scene)
@@ -397,12 +434,12 @@ def course_drawer_wrapper(text_race_userinput):
 
 if __name__ == '__main__':
 
-    #course_drawer_wrapper(text_race_userinput='부상 직후 트레이닝')
+    course_drawer_wrapper(text_race_userinput='이비스')
     
 
-    course_drawer(text_course_userinput='한신',
-                  text_course_distance_userinput=3200,
-                  text_course_type_userinput='잔디',
-                  text_course_turn_userinput='우',
-                  text_course_inout_userinput='외내',
-                  )
+    #course_drawer(text_course_userinput='한신',
+    #              text_course_distance_userinput=3200,
+    #              text_course_type_userinput='잔디',
+    #              text_course_turn_userinput='우',
+    #              text_course_inout_userinput='외내',
+    #              )
