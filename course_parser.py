@@ -290,47 +290,55 @@ def course_drawer(text_course_userinput,
 
     _str_builder += _str_course
 
-    scene.visuals.Text(text=_str_builder, pos=[5, 10], parent=b2.scene, face='맑은 고딕', font_size=15)
+    scene.visuals.Text(text=_str_builder, pos=[5, 10], parent=b2.scene, face='맑은 고딕', font_size=8)
 
     _str_builder = f'<개최 레이스 목록>\n\n'
     for i in range(len(text_course_used_race)):
         _str_builder += f'{text_course_used_race[i][0]}\n'
 
-    scene.visuals.Text(text=_str_builder, pos=[15, 10], parent=b2.scene, face='맑은 고딕', font_size=15)
+    scene.visuals.Text(text=_str_builder, pos=[15, 10], parent=b2.scene, face='맑은 고딕', font_size=8)
 
 
     # Course Height
     gridcontents_courseheight = scene.visuals.Line(pos=pos_height, color=color, antialias=True, width=3, method='gl', parent=b3.scene)
     gridcontents_courseheight.update_gl_state(depth_test=False)
     scene.Axis(pos=[[0, 0], [N, 0]], tick_direction=(0,-1), domain=(0, race_distance), axis_color='k',
-               tick_color='k', text_color='k', axis_font_size=12, tick_font_size=12,
+               tick_color='k', text_color='k', axis_font_size=7, tick_font_size=7,
                axis_label_margin=30, tick_label_margin=8, parent=b3.scene)
     scene.Axis(pos=[[0, yy_floor], [0, yy_ceil]], tick_direction=(-1, 0),
                domain=(yy_floor, yy_ceil), axis_label='meter',
-               axis_color='k', axis_font_size=12, tick_font_size=12,
+               axis_color='k', axis_font_size=7, tick_font_size=7,
                tick_color='k', text_color='k',
                axis_label_margin=30, tick_label_margin=8, parent=b3.scene)
+
+    #scene.visuals.InfiniteLine(yy_max / 3.0, [0.5, 0.5, 0.5, 0.5], vertical=False, parent=b3.scene)
 
     for i in range(len(race_course_sub)):
         scene.visuals.InfiniteLine(race_course_sub[i], [0.5,0.5,0.5,0.5], parent=b3.scene)
 
-        if i % 2 == 1:
-            continue
+        scene.visuals.Text(text=str(f'{race_course_sub_orig[i]:.0f}m'),
+                           pos=[race_course_sub[i] - 30, yy_max / 3.0],
+                           font_size=7, parent=b3.scene)
 
-        if i == len(race_course_sub) - 1:
-            pass
-        else:
-            scene.visuals.Text(text=str(f'{race_course_sub_orig[i + 1] - race_course_sub_orig[i]:.0f}'),
-                               pos=[race_course_sub[i + 1] - 30, yy_max+0.2],
-                               font_size=12, parent=b3.scene)
+        if i % 2 == 0:
+            _straight_sector_border = [(race_course_sub[i], 0),
+                                       (race_course_sub[i+1], 0),
+                                       (race_course_sub[i+1], yy_ceil),
+                                       (race_course_sub[i], yy_ceil)]
+
+            scene.visuals.Polygon(_straight_sector_border, color=(0, 0, 0, 0.1), parent=b3.scene)
+
+            scene.visuals.Text(text=str(f'직선 {race_course_sub_orig[i + 1] - race_course_sub_orig[i]:.0f}m'),
+                               pos=[race_course_sub[i + 1] - 40, yy_max+0.2],
+                               font_size=7, parent=b3.scene, face='맑은 고딕')
 
     if text_course_turn_id != 4:
         _rctmp = np.array(race_course_turn_sub)
         _rcotmp = np.array(race_course_turn_sub_orig)
-        _cmtmp = [[1, 0.27, 0, 0.2],
-                  [0.27, 1, 0, 0.2],
-                  [0, 0.27, 1, 0.2],
-                  [0.58, 0, 0.82, 0.2],]
+        _cmtmp = [[1, 0.2, 0, 0.2],
+                  [1, 0.4, 0, 0.2],
+                  [1, 0.2, 0, 0.2],
+                  [1, 0.4, 0, 0.2],]
 
         for i in range(len(_rctmp)):
             _turn_polygon_border = [(_rctmp[i,1], 0),
@@ -340,9 +348,15 @@ def course_drawer(text_course_userinput,
             scene.visuals.Polygon(_turn_polygon_border, color=_cmtmp[int(i % 4)], parent=b3.scene)
             #scene.visuals.LinearRegion([_rctmp[i,1], _rctmp[i,1] + _rctmp[i,0][1]], _cmtmp[int(i % 4)], parent=b3.scene)
 
-            scene.visuals.Text(text=str(f'#{_rctmp[i,0][0]} {_rcotmp[i,0][1]:.0f}'),
-                               pos=[_rctmp[i,1] + _rctmp[i,0][1] - 30, yy_max+0.2],
-                               font_size=12, parent=b3.scene, color=(0.545, 0, 0, 0.75))
+            if i % 2 != 0:
+                #scene.visuals.Text(text=str(f'#{_rctmp[i,0][0]} {_rcotmp[i,0][1]:.0f}'),
+                #                   pos=[_rctmp[i,1] + _rctmp[i,0][1] - 30, yy_max+0.2],
+                #                   font_size=7, parent=b3.scene, color=(0.545, 0, 0, 0.75))
+
+                scene.visuals.Text(text=str(f'코너 {_rcotmp[i,0][1] + _rcotmp[i-1,0][1]:.0f}m'),
+                                   pos=[_rctmp[i,1] + _rctmp[i,0][1] - 40, yy_max+0.2],
+                                   font_size=7, parent=b3.scene, color=(0.545, 0, 0, 0.75),
+                                   face='맑은 고딕')
 
     _cmtmp = [[0, 1, 0, 0.5],
               [0, 0, 1, 0.5],
@@ -367,9 +381,11 @@ def course_drawer(text_course_userinput,
                                  (course_sector_xdata[i][1], 0),
                                  (course_sector_xdata[i][0], 0)]
         scene.visuals.Polygon(_course_sector_border, color=_cmtmp[i], parent=b3.scene)
-        scene.visuals.Text(text=str(f'{course_sector_xdata_metric[i]}m'),
-                           pos=[course_sector_xdata[i][1], course_sector_ydata],
-                           font_size=12, parent=b3.scene, color='k')
+
+        # Text for sector distinguish
+        #scene.visuals.Text(text=str(f'{course_sector_xdata_metric[i]}m'),
+        #                   pos=[course_sector_xdata[i][1], course_sector_ydata],
+        #                   font_size=7, parent=b3.scene, color='k')
 
     # 3D Rotating
     gridcontents_3d = scene.visuals.Markers(parent=b4.scene)
@@ -434,7 +450,7 @@ def course_drawer_wrapper(text_race_userinput):
 
 if __name__ == '__main__':
 
-    course_drawer_wrapper(text_race_userinput='이비스')
+    course_drawer_wrapper(text_race_userinput='아리마')
     
 
     #course_drawer(text_course_userinput='한신',
